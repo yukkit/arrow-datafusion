@@ -450,4 +450,50 @@ mod tests {
         assert_eq!(buffer[1], "worker 0 panicked with: UNKNOWN");
         assert_eq!(buffer[2], "worker 0 panicked with: test");
     }
+
+    #[tokio::test]
+    async fn test_runtime_err() {
+        init_logging();
+
+        let scheduler = Scheduler::new(4);
+
+        let config = SessionConfig::new().with_target_partitions(4);
+        let context = SessionContext::with_config(config);
+
+        context.register_table("table1", make_provider()).unwrap();
+
+        let queries = [
+            "WITH gp AS (SELECT id FROM table1 GROUP BY id) 
+            SELECT COUNT(CAST(CAST(gp.id || '' AS TIMESTAMP) AS BIGINT)) FROM gp",
+        ];
+
+        for sql in queries {
+            let task = context.task_ctx();
+
+            let query = context.sql(sql).await.unwrap();
+
+            let plan = query.create_physical_plan().await.unwrap();
+
+            println!("Plan: {}", displayable(plan.as_ref()).indent());
+
+            let stream = scheduler.schedule(plan, task).unwrap().stream();
+            let scheduled: Vec<_> = stream.try_collect().await.unwrap();
+            let expected = query.collect().await.unwrap();
+
+            let total_expected = expected.iter().map(|x| x.num_rows()).sum::<usize>();
+            let total_scheduled = scheduled.iter().map(|x| x.num_rows()).sum::<usize>();
+            assert_eq!(total_expected, total_scheduled);
+
+            info!("Query \"{}\" produced {} rows", sql, total_expected);
+
+            let expected = pretty_format_batches(&expected).unwrap().to_string();
+            let scheduled = pretty_format_batches(&scheduled).unwrap().to_string();
+
+            assert_eq!(
+                expected, scheduled,
+                "\n\nexpected:\n\n{}\nactual:\n\n{}\n\n",
+                expected, scheduled
+            );
+        }
+    }
 }
