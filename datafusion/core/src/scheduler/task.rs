@@ -108,17 +108,24 @@ impl Task {
         routable: &RoutablePipeline,
         error: DataFusionError,
     ) {
-        self.context.send_query_output(partition, Err(error));
-        if let Some(link) = routable.output {
-            trace!(
-                "Closing pipeline: {:?}, partition: {}, due to error",
-                link,
-                self.waker.partition,
-            );
+        match routable.output {
+            Some(link) => {
+                // The query output partition number may not equal current pipeline's output partition number,
+                // but the query output has at least one partition，
+                // so send error to the first partition of the query output.
+                self.context.send_query_output(0, Err(error));
 
-            self.context.pipelines[link.pipeline]
-                .pipeline
-                .close(link.child, self.waker.partition);
+                trace!(
+                    "Closing pipeline: {:?}, partition: {}, due to error",
+                    link,
+                    self.waker.partition,
+                );
+
+                self.context.pipelines[link.pipeline]
+                    .pipeline
+                    .close(link.child, self.waker.partition);
+            }
+            None => self.context.send_query_output(partition, Err(error)),
         }
     }
 
@@ -303,6 +310,7 @@ impl ExecutionContext {
 
     /// Sends `output` to this query's output stream
     fn send_query_output(&self, partition: usize, output: Result<RecordBatch>) {
+        debug_assert!(self.output.len() > partition, "the specified partition exceeds the total number of output partitions");
         let _ = self.output[partition].unbounded_send(Some(output));
     }
 
