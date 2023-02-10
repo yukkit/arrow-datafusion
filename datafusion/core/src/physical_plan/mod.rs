@@ -667,10 +667,10 @@ pub mod windows;
 use crate::execution::context::TaskContext;
 use crate::physical_plan::repartition::RepartitionExec;
 use crate::physical_plan::sorts::sort_preserving_merge::SortPreservingMergeExec;
+pub use aggregates::{create_schema, AggregateStream};
 pub use datafusion_physical_expr::{
     expressions, functions, hash_utils, type_coercion, udf,
 };
-pub use aggregates::{AggregateStream, create_schema};
 
 #[cfg(test)]
 mod tests {

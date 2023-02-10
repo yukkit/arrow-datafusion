@@ -528,9 +528,7 @@ pub fn create_schema(
             // schema field is not.
             contains_null_expr || expr.nullable(input_schema)?,
         );
-        field.set_metadata(
-            get_field_metadata(expr, &input_schema).unwrap_or_default(),
-        );
+        field.set_metadata(get_field_metadata(expr, input_schema).unwrap_or_default());
         fields.push(field)
     }
 
@@ -549,7 +547,10 @@ pub fn create_schema(
         }
     }
 
-    Ok(Schema::new_with_metadata(fields, input_schema.metadata().clone()))
+    Ok(Schema::new_with_metadata(
+        fields,
+        input_schema.metadata().clone(),
+    ))
 }
 
 fn group_schema(schema: &Schema, group_count: usize) -> SchemaRef {

@@ -168,7 +168,8 @@ impl OptimizerRule for PushDownProjection {
                 generate_plan!(projection_is_empty, plan, new_join)
             }
             LogicalPlan::TableScan(scan)
-                if !scan.projected_schema.fields().is_empty() =>
+                if (!scan.projected_schema.fields().is_empty()
+                    && scan.agg_with_grouping.is_none()) =>
             {
                 let mut used_columns: HashSet<Column> = HashSet::new();
                 // filter expr may not exist in expr in projection.
@@ -550,6 +551,7 @@ fn push_down_scan(
         projected_schema,
         filters: scan.filters.clone(),
         fetch: scan.fetch,
+        agg_with_grouping: scan.agg_with_grouping.clone(),
     }))
 }
 

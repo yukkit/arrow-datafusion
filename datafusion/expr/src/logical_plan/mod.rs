@@ -23,12 +23,12 @@ mod statement;
 
 pub use builder::{table_scan, LogicalPlanBuilder};
 pub use plan::{
-    Aggregate, Analyze, CreateCatalog, CreateCatalogSchema, CreateExternalTable,
-    CreateMemoryTable, CreateView, CrossJoin, DescribeTable, Distinct, DropTable,
-    DropView, EmptyRelation, Explain, Extension, Filter, Join, JoinConstraint, JoinType,
-    Limit, LogicalPlan, Partitioning, PlanType, Prepare, Projection, Repartition, Sort,
-    StringifiedPlan, Subquery, SubqueryAlias, TableScan, ToStringifiedPlan, Union,
-    Unnest, Values, Window,
+    AggWithGrouping, Aggregate, Analyze, CreateCatalog, CreateCatalogSchema,
+    CreateExternalTable, CreateMemoryTable, CreateView, CrossJoin, DescribeTable,
+    Distinct, DropTable, DropView, EmptyRelation, Explain, Extension, Filter, Join,
+    JoinConstraint, JoinType, Limit, LogicalPlan, Partitioning, PlanType, Prepare,
+    Projection, Repartition, Sort, StringifiedPlan, Subquery, SubqueryAlias, TableScan,
+    ToStringifiedPlan, Union, Unnest, Values, Window,
 };
 pub use statement::{
     DmlStatement, SetVariable, Statement, TransactionAccessMode, TransactionConclusion,
