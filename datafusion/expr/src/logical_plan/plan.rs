@@ -949,6 +949,7 @@ impl LogicalPlan {
                         ref table_name,
                         ref projection,
                         ref filters,
+                        ref agg_with_grouping,
                         ref fetch,
                         ..
                     }) => {
@@ -999,6 +1000,15 @@ impl LogicalPlan {
                                     ", unsupported_filters={unsupported_filters:?}"
                                 )?;
                             }
+                        }
+
+                        if let Some(AggWithGrouping {
+                            group_expr,
+                            agg_expr: aggr_expr,
+                            ..
+                        }) = agg_with_grouping
+                        {
+                            write!(f, ", grouping={group_expr:?}, agg={aggr_expr:?}",)?;
                         }
 
                         if let Some(n) = fetch {
@@ -1503,6 +1513,14 @@ pub struct Window {
     pub schema: DFSchemaRef,
 }
 
+#[derive(Clone)]
+pub struct AggWithGrouping {
+    pub group_expr: Vec<Expr>,
+    pub agg_expr: Vec<Expr>,
+    /// The schema description of the aggregate output
+    pub schema: DFSchemaRef,
+}
+
 /// Produces rows from a table provider by reference or from the context
 #[derive(Clone)]
 pub struct TableScan {
@@ -1516,6 +1534,7 @@ pub struct TableScan {
     pub projected_schema: DFSchemaRef,
     /// Optional expressions to be used as filters by the table provider
     pub filters: Vec<Expr>,
+    pub agg_with_grouping: Option<AggWithGrouping>,
     /// Optional number of rows to read
     pub fetch: Option<usize>,
 }

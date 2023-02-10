@@ -29,6 +29,7 @@ use crate::physical_plan::ExecutionPlan;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion_common::DataFusionError;
+use datafusion_expr::logical_plan::AggWithGrouping;
 use datafusion_expr::{CreateExternalTable, Expr, TableType};
 
 /// Compares formatted output of a record batch with an expected
@@ -326,6 +327,7 @@ impl TableProvider for TestTableProvider {
         _state: &SessionState,
         _projection: Option<&Vec<usize>>,
         _filters: &[Expr],
+        _agg_with_grouping: Option<&AggWithGrouping>,
         _limit: Option<usize>,
     ) -> datafusion_common::Result<Arc<dyn ExecutionPlan>> {
         unimplemented!("TestTableProvider is a stub for testing.")

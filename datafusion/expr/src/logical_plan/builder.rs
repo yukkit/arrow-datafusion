@@ -243,6 +243,7 @@ impl LogicalPlanBuilder {
             projection,
             filters,
             fetch: None,
+            agg_with_grouping: None,
         });
         Ok(Self::from(table_scan))
     }
