@@ -731,6 +731,7 @@ impl OptimizerRule for PushDownFilter {
                     table_name: scan.table_name.clone(),
                     filters: new_scan_filters,
                     fetch: scan.fetch,
+                    agg_with_grouping: scan.agg_with_grouping.clone(),
                 });
 
                 match conjunction(new_predicate) {
@@ -1926,6 +1927,7 @@ mod tests {
             projection: None,
             source: Arc::new(test_provider),
             fetch: None,
+            agg_with_grouping: None,
         });
 
         LogicalPlanBuilder::from(table_scan)
@@ -1998,6 +2000,7 @@ mod tests {
             projection: Some(vec![0]),
             source: Arc::new(test_provider),
             fetch: None,
+            agg_with_grouping: None,
         });
 
         let plan = LogicalPlanBuilder::from(table_scan)
