@@ -307,9 +307,11 @@ impl LogicalPlan {
                 // update extension to just observer Exprs
                 extension.node.expressions().iter().try_for_each(f)
             }
-            LogicalPlan::TableScan(TableScan { filters, .. }) => {
-                filters.iter().try_for_each(f)
-            }
+            LogicalPlan::TableScan(TableScan {
+                filters,
+                agg_with_grouping,
+                ..
+            }) if agg_with_grouping.is_none() => filters.iter().try_for_each(f),
             LogicalPlan::Unnest(Unnest { column, .. }) => {
                 f(&Expr::Column(column.clone()))
             }
@@ -333,6 +335,7 @@ impl LogicalPlan {
             | LogicalPlan::Distinct(_)
             | LogicalPlan::Dml(_)
             | LogicalPlan::DescribeTable(_)
+            | LogicalPlan::TableScan(_)
             | LogicalPlan::Prepare(_) => Ok(()),
         }
     }
@@ -949,6 +952,7 @@ impl LogicalPlan {
                         ref table_name,
                         ref projection,
                         ref filters,
+                        ref agg_with_grouping,
                         ref fetch,
                         ..
                     }) => {
@@ -999,6 +1003,15 @@ impl LogicalPlan {
                                     ", unsupported_filters={unsupported_filters:?}"
                                 )?;
                             }
+                        }
+
+                        if let Some(AggWithGrouping {
+                            group_expr,
+                            agg_expr: aggr_expr,
+                            ..
+                        }) = agg_with_grouping
+                        {
+                            write!(f, ", grouping={group_expr:?}, agg={aggr_expr:?}",)?;
                         }
 
                         if let Some(n) = fetch {
@@ -1503,6 +1516,14 @@ pub struct Window {
     pub schema: DFSchemaRef,
 }
 
+#[derive(Clone)]
+pub struct AggWithGrouping {
+    pub group_expr: Vec<Expr>,
+    pub agg_expr: Vec<Expr>,
+    /// The schema description of the aggregate output
+    pub schema: DFSchemaRef,
+}
+
 /// Produces rows from a table provider by reference or from the context
 #[derive(Clone)]
 pub struct TableScan {
@@ -1516,8 +1537,15 @@ pub struct TableScan {
     pub projected_schema: DFSchemaRef,
     /// Optional expressions to be used as filters by the table provider
     pub filters: Vec<Expr>,
+    pub agg_with_grouping: Option<AggWithGrouping>,
     /// Optional number of rows to read
     pub fetch: Option<usize>,
+}
+
+impl TableScan {
+    pub fn is_aggregate_filter_scan(&self) -> bool {
+        self.agg_with_grouping.is_some()
+    }
 }
 
 /// Apply Cross Join to two logical plans
