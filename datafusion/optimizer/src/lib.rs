@@ -28,6 +28,7 @@ pub mod filter_null_join_keys;
 pub mod inline_table_scan;
 pub mod optimizer;
 pub mod propagate_empty_relation;
+pub mod push_down_aggregation;
 pub mod push_down_filter;
 pub mod push_down_limit;
 pub mod push_down_projection;

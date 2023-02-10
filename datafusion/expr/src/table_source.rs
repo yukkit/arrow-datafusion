@@ -38,6 +38,20 @@ pub enum TableProviderFilterPushDown {
     Exact,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TableProviderAggregationPushDown {
+    // Cannot push down
+    Unsupported,
+    // After pushing down the aggregate to the data source, the data source can still output data with
+    // duplicated keys, which is OK as DataFusion will do GROUP BY key again.
+    // The final query plan save `final aggregate` node.
+    // Note that, if there is no grouping expression and the data source's partition is signal, need Ungrouped,
+    Ungrouped,
+    // After pushing down the aggregate to the data source, the data source can output data without
+    // duplicated keys. The final query plan can remove `Aggregate` node.
+    Grouped,
+}
+
 /// Indicates the type of this table for metadata/catalog purposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TableType {
@@ -75,6 +89,15 @@ pub trait TableSource: Sync + Send {
         _filter: &Expr,
     ) -> datafusion_common::Result<TableProviderFilterPushDown> {
         Ok(TableProviderFilterPushDown::Unsupported)
+    }
+
+    /// true if the aggregation can be pushed down to datasource, false otherwise.
+    fn supports_aggregate_pushdown(
+        &self,
+        _group_expr: &[Expr],
+        _aggr_expr: &[Expr],
+    ) -> datafusion_common::Result<TableProviderAggregationPushDown> {
+        Ok(TableProviderAggregationPushDown::Unsupported)
     }
 
     /// Get the Logical plan of this table provider, if available.

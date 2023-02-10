@@ -22,8 +22,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion_common::Statistics;
+use datafusion_expr::logical_plan::AggWithGrouping;
 use datafusion_expr::{CreateExternalTable, LogicalPlan};
-pub use datafusion_expr::{TableProviderFilterPushDown, TableType};
+pub use datafusion_expr::{
+    TableProviderAggregationPushDown, TableProviderFilterPushDown, TableType,
+};
 
 use crate::arrow::datatypes::SchemaRef;
 use crate::error::Result;
@@ -63,6 +66,7 @@ pub trait TableProvider: Sync + Send {
         state: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
+        agg_with_grouping: Option<&AggWithGrouping>,
         // limit can be used to reduce the amount scanned
         // from the datasource as a performance optimization.
         // If set, it contains the amount of rows needed by the `LogicalPlan`,
@@ -77,6 +81,15 @@ pub trait TableProvider: Sync + Send {
         _filter: &Expr,
     ) -> Result<TableProviderFilterPushDown> {
         Ok(TableProviderFilterPushDown::Unsupported)
+    }
+
+    /// true if the aggregation can be pushed down to datasource, false otherwise.
+    fn supports_aggregate_pushdown(
+        &self,
+        _group_expr: &[Expr],
+        _aggr_expr: &[Expr],
+    ) -> Result<TableProviderAggregationPushDown> {
+        Ok(TableProviderAggregationPushDown::Unsupported)
     }
 
     /// Get statistics for this table, if available

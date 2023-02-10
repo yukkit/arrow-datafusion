@@ -470,6 +470,12 @@ impl From<DFSchema> for SchemaRef {
     }
 }
 
+impl From<&DFSchema> for SchemaRef {
+    fn from(df_schema: &DFSchema) -> Self {
+        SchemaRef::new(df_schema.into())
+    }
+}
+
 /// Convenience trait to convert Schema like things to DFSchema and DFSchemaRef with fewer keystrokes
 pub trait ToDFSchema
 where

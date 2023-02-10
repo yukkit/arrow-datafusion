@@ -25,6 +25,7 @@ use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use datafusion_expr::expr::Sort;
+use datafusion_expr::logical_plan::AggWithGrouping;
 use datafusion_physical_expr::PhysicalSortExpr;
 use futures::{future, stream, StreamExt, TryStreamExt};
 use object_store::path::Path;
@@ -633,6 +634,7 @@ impl TableProvider for ListingTable {
         state: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
+        _agg_with_grouping: Option<&AggWithGrouping>,
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let (partitioned_file_lists, statistics) =
@@ -813,7 +815,7 @@ mod tests {
         // Create a table
         let table = ListingTable::try_new(config)?;
         // Create executor from table
-        let source_exec = table.scan(&ctx.state(), None, &[], None).await?;
+        let source_exec = table.scan(&ctx.state(), None, &[], None, None).await?;
 
         assert_eq!(source_exec.unbounded_output(&[])?, infinite_data);
 
@@ -827,7 +829,7 @@ mod tests {
         let table = load_table(&ctx, "alltypes_plain.parquet").await?;
         let projection = None;
         let exec = table
-            .scan(&ctx.state(), projection, &[], None)
+            .scan(&ctx.state(), projection, &[], None, None)
             .await
             .expect("Scan table");
 
@@ -857,7 +859,7 @@ mod tests {
             .with_schema(schema);
         let table = ListingTable::try_new(config)?;
 
-        let exec = table.scan(&state, None, &[], None).await?;
+        let exec = table.scan(&state, None, &[], None, None).await?;
         assert_eq!(exec.statistics().num_rows, Some(8));
         assert_eq!(exec.statistics().total_byte_size, Some(671));
 
@@ -881,7 +883,7 @@ mod tests {
             .with_schema(schema);
         let table = ListingTable::try_new(config)?;
 
-        let exec = table.scan(&state, None, &[], None).await?;
+        let exec = table.scan(&state, None, &[], None, None).await?;
         assert_eq!(exec.statistics().num_rows, None);
         assert_eq!(exec.statistics().total_byte_size, None);
 
@@ -1019,7 +1021,7 @@ mod tests {
         let filter = Expr::not_eq(col("p1"), lit("v1"));
 
         let scan = table
-            .scan(&ctx.state(), None, &[filter], None)
+            .scan(&ctx.state(), None, &[filter], None, None)
             .await
             .expect("Empty execution plan");
 
