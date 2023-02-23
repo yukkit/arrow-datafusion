@@ -29,6 +29,7 @@ use arrow::json::reader::ValueIter;
 use async_trait::async_trait;
 use bytes::Buf;
 
+use datafusion_expr::logical_plan::AggWithGrouping;
 use object_store::{GetResult, ObjectMeta, ObjectStore};
 
 use super::FileFormat;
@@ -144,6 +145,7 @@ impl FileFormat for JsonFormat {
         _state: &SessionState,
         conf: FileScanConfig,
         _filters: &[Expr],
+        _agg_with_grouping: Option<&AggWithGrouping>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let exec = NdJsonExec::new(conf, self.file_compression_type.to_owned());
         Ok(Arc::new(exec))

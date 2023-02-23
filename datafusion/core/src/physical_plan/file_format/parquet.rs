@@ -17,7 +17,13 @@
 
 //! Execution plan for reading Parquet files
 
+use arrow::array::{ArrayRef, Int64Builder};
 use arrow::datatypes::{DataType, SchemaRef};
+use arrow::record_batch::RecordBatch;
+use datafusion_expr::aggregate_function;
+use datafusion_expr::expr::AggregateFunction;
+use datafusion_expr::logical_plan::AggWithGrouping;
+use datafusion_expr::utils;
 use fmt::Debug;
 use std::any::Any;
 use std::cmp::min;
@@ -32,6 +38,7 @@ use crate::physical_plan::file_format::file_stream::{
     FileOpenFuture, FileOpener, FileStream,
 };
 use crate::physical_plan::file_format::FileMeta;
+use crate::physical_plan::memory::MemoryStream;
 use crate::{
     datasource::listing::FileRange,
     error::{DataFusionError, Result},
@@ -94,6 +101,7 @@ pub struct ParquetExec {
     base_config: FileScanConfig,
     projected_statistics: Statistics,
     projected_schema: SchemaRef,
+    aggregation: Option<AggWithGrouping>,
     /// Execution metrics
     metrics: ExecutionPlanMetricsSet,
     /// Optional predicate for row filtering during parquet scan
@@ -113,6 +121,7 @@ impl ParquetExec {
     pub fn new(
         base_config: FileScanConfig,
         predicate: Option<Expr>,
+        aggregation: Option<AggWithGrouping>,
         metadata_size_hint: Option<usize>,
     ) -> Self {
         debug!("Creating ParquetExec, files: {:?}, projection {:?}, predicate: {:?}, limit: {:?}",
@@ -154,7 +163,11 @@ impl ParquetExec {
         // Save original predicate
         let predicate = predicate.map(Arc::new);
 
-        let (projected_schema, projected_statistics) = base_config.project();
+        let (mut projected_schema, projected_statistics) = base_config.project();
+
+        if let Some(ref agg) = aggregation {
+            projected_schema = SchemaRef::from(agg.schema.as_ref())
+        }
 
         Self {
             pushdown_filters: None,
@@ -165,6 +178,7 @@ impl ParquetExec {
             projected_statistics,
             metrics,
             predicate,
+            aggregation,
             pruning_predicate,
             page_pruning_predicate,
             metadata_size_hint,
@@ -372,26 +386,42 @@ impl ExecutionPlan for ParquetExec {
 
         let config_options = ctx.session_config().config_options();
 
-        let opener = ParquetOpener {
-            partition_index,
-            projection: Arc::from(projection),
-            batch_size: ctx.session_config().batch_size(),
-            predicate: self.predicate.clone(),
-            pruning_predicate: self.pruning_predicate.clone(),
-            page_pruning_predicate: self.page_pruning_predicate.clone(),
-            table_schema: self.base_config.file_schema.clone(),
-            metadata_size_hint: self.metadata_size_hint,
-            metrics: self.metrics.clone(),
-            parquet_file_reader_factory,
-            pushdown_filters: self.pushdown_filters(config_options),
-            reorder_filters: self.reorder_filters(config_options),
-            enable_page_index: self.enable_page_index(config_options),
+        if let Some(ref aggregation) = self.aggregation {
+            let opener = ParquetAggOpener {
+                partition_index,
+                aggregation: Arc::new(aggregation.clone()),
+                table_schema: self.base_config.file_schema.clone(),
+                metadata_size_hint: self.metadata_size_hint,
+                metrics: self.metrics.clone(),
+                parquet_file_reader_factory,
+            };
+
+            let stream =
+                FileStream::new(&self.base_config, partition_index, opener, &self.metrics)?;
+
+            return Ok(Box::pin(stream));
+        } else {
+            let opener = ParquetOpener {
+                partition_index,
+                projection: Arc::from(projection),
+                batch_size: ctx.session_config().batch_size(),
+                predicate: self.predicate.clone(),
+                pruning_predicate: self.pruning_predicate.clone(),
+                page_pruning_predicate: self.page_pruning_predicate.clone(),
+                table_schema: self.base_config.file_schema.clone(),
+                metadata_size_hint: self.metadata_size_hint,
+                metrics: self.metrics.clone(),
+                parquet_file_reader_factory,
+                pushdown_filters: self.pushdown_filters(config_options),
+                reorder_filters: self.reorder_filters(config_options),
+                enable_page_index: self.enable_page_index(config_options),
+            };
+
+            let stream =
+                FileStream::new(&self.base_config, partition_index, opener, &self.metrics)?;
+
+            return Ok(Box::pin(stream));
         };
-
-        let stream =
-            FileStream::new(&self.base_config, partition_index, opener, &self.metrics)?;
-
-        Ok(Box::pin(stream))
     }
 
     fn fmt_as(
@@ -453,6 +483,94 @@ fn make_output_ordering_string(ordering: &[PhysicalSortExpr]) -> String {
     }
     write!(&mut w, "]").unwrap();
     w
+}
+
+/// Implements [`FormatReader`] for a parquet file
+struct ParquetAggOpener {
+    partition_index: usize,
+    aggregation: Arc<AggWithGrouping>,
+    table_schema: SchemaRef,
+    metadata_size_hint: Option<usize>,
+    metrics: ExecutionPlanMetricsSet,
+    parquet_file_reader_factory: Arc<dyn ParquetFileReaderFactory>,
+}
+
+impl FileOpener for ParquetAggOpener {
+    fn open(&self, file_meta: FileMeta) -> Result<FileOpenFuture> {
+        let file_range = file_meta.range.clone();
+
+        let file_metrics = ParquetFileMetrics::new(
+            self.partition_index,
+            file_meta.location().as_ref(),
+            &self.metrics,
+        );
+
+        let mut reader: Box<dyn AsyncFileReader> =
+            self.parquet_file_reader_factory.create_reader(
+                self.partition_index,
+                file_meta,
+                self.metadata_size_hint,
+                &self.metrics,
+            )?;
+
+        let aggregation = self.aggregation.clone();
+        let table_schema = self.table_schema.clone();
+
+        Ok(Box::pin(async move {
+            let metadata = reader.get_metadata().await?;
+
+            let AggWithGrouping {
+                agg_expr, schema, ..
+            } = aggregation.as_ref();
+
+            let mut columns_data: Vec<ArrayRef> = Vec::with_capacity(agg_expr.len());
+
+            for agg in agg_expr {
+                match agg {
+                    Expr::AggregateFunction(AggregateFunction { fun, args, .. }) => {
+                        match fun {
+                            aggregate_function::AggregateFunction::Max => {}
+                            aggregate_function::AggregateFunction::Min => {}
+                            aggregate_function::AggregateFunction::Count => {
+                                let columns = args
+                                    .iter()
+                                    .flat_map(utils::find_columns_referenced_by_expr)
+                                    .collect::<Vec<_>>();
+                                if columns.len() != 1 {
+                                    return Err(DataFusionError::Internal(
+                                        format!("Count has multi agruments: {:?}, {:?}", columns, args),
+                                    ));
+                                }
+                                let idx = table_schema.index_of(&columns[0].name)?;
+
+                                let row_count = metadata
+                                    .row_groups()
+                                    .iter()
+                                    .map(|rg| rg.column(idx).num_values())
+                                    .reduce(|l, r| l + r);
+
+                                let mut builder = Int64Builder::new();
+                                builder.append_option(row_count);
+                                columns_data.push(Arc::new(builder.finish()) as ArrayRef);
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            let schema = SchemaRef::from(schema.as_ref());
+            let batch = RecordBatch::try_new(schema.clone(), columns_data)?;
+
+            let stream = MemoryStream::try_new(vec![batch], schema.clone(), None)?;
+
+            let adapted = stream
+                .map_err(|e| ArrowError::ExternalError(Box::new(e)));
+
+            Ok(adapted.boxed())
+        }))
+    }
 }
 
 /// Implements [`FormatReader`] for a parquet file
@@ -924,6 +1042,7 @@ mod tests {
                     infinite_source: false,
                 },
                 predicate,
+                None,
                 None,
             );
 
@@ -1577,6 +1696,7 @@ mod tests {
                 },
                 None,
                 None,
+                None,
             );
             assert_eq!(parquet_exec.output_partitioning().partition_count(), 1);
             let results = parquet_exec.execute(0, state.task_ctx())?.next().await;
@@ -1667,6 +1787,7 @@ mod tests {
             },
             None,
             None,
+            None,
         );
         assert_eq!(parquet_exec.output_partitioning().partition_count(), 1);
 
@@ -1725,6 +1846,7 @@ mod tests {
                 output_ordering: None,
                 infinite_source: false,
             },
+            None,
             None,
             None,
         );
@@ -1918,6 +2040,7 @@ mod tests {
             },
             None,
             None,
+            None,
         );
 
         let actual = file_groups_to_vec(
@@ -1953,6 +2076,7 @@ mod tests {
                 output_ordering: None,
                 infinite_source: false,
             },
+            None,
             None,
             None,
         );
@@ -1997,6 +2121,7 @@ mod tests {
             },
             None,
             None,
+            None,
         );
 
         let actual = file_groups_to_vec(
@@ -2033,6 +2158,7 @@ mod tests {
                 output_ordering: None,
                 infinite_source: false,
             },
+            None,
             None,
             None,
         );
@@ -2074,6 +2200,7 @@ mod tests {
             },
             None,
             None,
+            None,
         );
 
         let actual = parquet_exec
@@ -2101,6 +2228,7 @@ mod tests {
                 output_ordering: None,
                 infinite_source: false,
             },
+            None,
             None,
             None,
         );

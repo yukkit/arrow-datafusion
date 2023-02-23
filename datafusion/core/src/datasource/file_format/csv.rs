@@ -29,6 +29,7 @@ use bytes::{Buf, Bytes};
 
 use datafusion_common::DataFusionError;
 
+use datafusion_expr::logical_plan::AggWithGrouping;
 use futures::{pin_mut, Stream, StreamExt, TryStreamExt};
 use object_store::{delimited::newline_delimited_stream, ObjectMeta, ObjectStore};
 
@@ -155,6 +156,7 @@ impl FileFormat for CsvFormat {
         _state: &SessionState,
         conf: FileScanConfig,
         _filters: &[Expr],
+        _agg_with_grouping: Option<&AggWithGrouping>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let exec = CsvExec::new(
             conf,

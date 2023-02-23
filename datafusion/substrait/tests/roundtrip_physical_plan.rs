@@ -52,7 +52,7 @@ mod tests {
             infinite_source: false,
         };
         let parquet_exec: Arc<dyn ExecutionPlan> =
-            Arc::new(ParquetExec::new(scan_config, None, None));
+            Arc::new(ParquetExec::new(scan_config, None, None, None));
 
         let mut extension_info: (
             Vec<extensions::SimpleExtensionDeclaration>,

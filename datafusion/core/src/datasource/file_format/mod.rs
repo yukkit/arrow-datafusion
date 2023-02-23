@@ -38,6 +38,8 @@ use crate::physical_plan::{ExecutionPlan, Statistics};
 
 use crate::execution::context::SessionState;
 use async_trait::async_trait;
+use datafusion_expr::logical_plan::AggWithGrouping;
+use datafusion_expr::TableProviderAggregationPushDown;
 use object_store::{ObjectMeta, ObjectStore};
 
 /// This trait abstracts all the file format specific implementations
@@ -77,6 +79,14 @@ pub trait FileFormat: Send + Sync + fmt::Debug {
         object: &ObjectMeta,
     ) -> Result<Statistics>;
 
+    fn supports_aggregate_pushdown(
+        &self,
+        _group_expr: &[Expr],
+        _aggr_expr: &[Expr],
+    ) -> Result<TableProviderAggregationPushDown> {
+        Ok(TableProviderAggregationPushDown::Unsupported)
+    }
+
     /// Take a list of files and convert it to the appropriate executor
     /// according to this file format.
     async fn create_physical_plan(
@@ -84,6 +94,7 @@ pub trait FileFormat: Send + Sync + fmt::Debug {
         state: &SessionState,
         conf: FileScanConfig,
         filters: &[Expr],
+        agg_with_grouping: Option<&AggWithGrouping>,
     ) -> Result<Arc<dyn ExecutionPlan>>;
 }
 
@@ -143,6 +154,7 @@ pub(crate) mod test_util {
                     infinite_source: false,
                 },
                 &[],
+                None,
             )
             .await?;
         Ok(exec)

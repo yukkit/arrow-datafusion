@@ -20,11 +20,11 @@ use datafusion_expr::expr::AggregateFunction;
 use datafusion_expr::logical_plan::AggWithGrouping;
 use datafusion_expr::logical_plan::{LogicalPlan, TableScan};
 use datafusion_expr::utils::{exprlist_to_columns, grouping_set_to_exprlist};
-use datafusion_expr::LogicalPlanBuilder;
 use datafusion_expr::{
     aggregate_function::AggregateFunction as AggregateFunctionName, Aggregate, Expr,
     TableProviderAggregationPushDown,
 };
+use datafusion_expr::{LogicalPlanBuilder, TableProviderFilterPushDown};
 use std::ops::Deref;
 use utils::optimize_children;
 
@@ -78,7 +78,15 @@ impl OptimizerRule for PushDownAggregation {
                         .supports_aggregate_pushdown(group_expr, aggr_expr)?
                     {
                         TableProviderAggregationPushDown::Unsupported => None,
-                        TableProviderAggregationPushDown::Ungrouped => {
+                        // TODO
+                        TableProviderAggregationPushDown::Ungrouped(filter_support) => {
+                            // unsupport filter aggregate
+                            if filter_support == TableProviderFilterPushDown::Unsupported
+                                && !filters.is_empty()
+                            {
+                                return Ok(None);
+                            }
+
                             // Save final agg node, can remove partial agg node
                             // Change the optimized logical plan to reflect the pushed down aggregate
                             //
@@ -190,7 +198,14 @@ impl OptimizerRule for PushDownAggregation {
 
                             Some(new_plan)
                         }
-                        TableProviderAggregationPushDown::Grouped => {
+                        TableProviderAggregationPushDown::Grouped(filter_support) => {
+                            // unsupport filter aggregate
+                            if filter_support == TableProviderFilterPushDown::Unsupported
+                                && !filters.is_empty()
+                            {
+                                return Ok(None);
+                            }
+
                             // Remove `Aggregate` node
                             // Change the optimized logical plan to reflect the pushed down aggregate
                             //

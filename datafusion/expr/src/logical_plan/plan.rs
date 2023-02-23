@@ -1508,7 +1508,7 @@ pub struct Window {
     pub schema: DFSchemaRef,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AggWithGrouping {
     pub group_expr: Vec<Expr>,
     pub agg_expr: Vec<Expr>,

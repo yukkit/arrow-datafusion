@@ -168,6 +168,7 @@ impl AsExecutionPlan for PhysicalPlanNode {
                     )?,
                     predicate,
                     None,
+                    None,
                 )))
             }
             PhysicalPlanType::AvroScan(scan) => {
@@ -1514,6 +1515,7 @@ mod roundtrip_tests {
         roundtrip_test(Arc::new(ParquetExec::new(
             scan_config,
             Some(predicate),
+            None,
             None,
         )))
     }

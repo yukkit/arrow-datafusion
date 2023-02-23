@@ -26,6 +26,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use datafusion_expr::expr::Sort;
 use datafusion_expr::logical_plan::AggWithGrouping;
+use datafusion_expr::TableProviderAggregationPushDown;
 use datafusion_physical_expr::PhysicalSortExpr;
 use futures::{future, stream, StreamExt, TryStreamExt};
 use object_store::path::Path;
@@ -634,7 +635,7 @@ impl TableProvider for ListingTable {
         state: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
-        _agg_with_grouping: Option<&AggWithGrouping>,
+        agg_with_grouping: Option<&AggWithGrouping>,
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let (partitioned_file_lists, statistics) =
@@ -680,8 +681,20 @@ impl TableProvider for ListingTable {
                     infinite_source: self.infinite_source,
                 },
                 filters,
+                // TODO
+                agg_with_grouping,
             )
             .await
+    }
+
+    fn supports_aggregate_pushdown(
+        &self,
+        group_expr: &[Expr],
+        aggr_expr: &[Expr],
+    ) -> Result<TableProviderAggregationPushDown> {
+        self.options
+            .format
+            .supports_aggregate_pushdown(group_expr, aggr_expr)
     }
 
     fn supports_filter_pushdown(

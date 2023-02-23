@@ -40,7 +40,7 @@ use datafusion_expr::expr::AggregateFunction;
 use datafusion_expr::logical_plan::AggWithGrouping;
 use datafusion_expr::{
     aggregate_function, LogicalPlan, LogicalPlanBuilder,
-    TableProviderAggregationPushDown, UNNAMED_TABLE,
+    TableProviderAggregationPushDown, TableProviderFilterPushDown, UNNAMED_TABLE,
 };
 use datafusion_optimizer::optimizer::Optimizer;
 use datafusion_optimizer::{OptimizerContext, OptimizerRule};
@@ -272,7 +272,9 @@ impl TableProvider for CustomAggregationProvider {
                 _ => false,
             }
         }) {
-            TableProviderAggregationPushDown::Ungrouped
+            TableProviderAggregationPushDown::Ungrouped(
+                TableProviderFilterPushDown::Unsupported,
+            )
         } else {
             TableProviderAggregationPushDown::Unsupported
         };

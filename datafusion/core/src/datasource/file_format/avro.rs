@@ -23,6 +23,7 @@ use std::sync::Arc;
 use arrow::datatypes::Schema;
 use arrow::{self, datatypes::SchemaRef};
 use async_trait::async_trait;
+use datafusion_expr::logical_plan::AggWithGrouping;
 use object_store::{GetResult, ObjectMeta, ObjectStore};
 
 use super::FileFormat;
@@ -83,6 +84,7 @@ impl FileFormat for AvroFormat {
         _state: &SessionState,
         conf: FileScanConfig,
         _filters: &[Expr],
+        _agg_with_grouping: Option<&AggWithGrouping>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let exec = AvroExec::new(conf);
         Ok(Arc::new(exec))

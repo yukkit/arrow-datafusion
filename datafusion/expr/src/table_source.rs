@@ -46,10 +46,10 @@ pub enum TableProviderAggregationPushDown {
     // duplicated keys, which is OK as DataFusion will do GROUP BY key again.
     // The final query plan save `final aggregate` node.
     // Note that, if there is no grouping expression and the data source's partition is signal, need Ungrouped,
-    Ungrouped,
+    Ungrouped(TableProviderFilterPushDown),
     // After pushing down the aggregate to the data source, the data source can output data without
     // duplicated keys. The final query plan can remove `Aggregate` node.
-    Grouped,
+    Grouped(TableProviderFilterPushDown),
 }
 
 /// Indicates the type of this table for metadata/catalog purposes.

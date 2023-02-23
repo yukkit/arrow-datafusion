@@ -73,6 +73,7 @@ async fn get_parquet_exec(state: &SessionState, filter: Expr) -> ParquetExec {
         },
         Some(filter),
         None,
+        None,
     );
     parquet_exec.with_enable_page_index(true)
 }

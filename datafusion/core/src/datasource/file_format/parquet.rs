@@ -25,6 +25,9 @@ use arrow::datatypes::SchemaRef;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use datafusion_common::DataFusionError;
+use datafusion_expr::logical_plan::AggWithGrouping;
+use datafusion_expr::TableProviderAggregationPushDown;
+use datafusion_expr::TableProviderFilterPushDown;
 use datafusion_optimizer::utils::conjunction;
 use hashbrown::HashMap;
 use object_store::{ObjectMeta, ObjectStore};
@@ -185,11 +188,22 @@ impl FileFormat for ParquetFormat {
         Ok(stats)
     }
 
+    fn supports_aggregate_pushdown(
+        &self,
+        _group_expr: &[Expr],
+        _aggr_expr: &[Expr],
+    ) -> Result<TableProviderAggregationPushDown> {
+        Ok(TableProviderAggregationPushDown::Ungrouped(
+            TableProviderFilterPushDown::Unsupported,
+        ))
+    }
+
     async fn create_physical_plan(
         &self,
         state: &SessionState,
         conf: FileScanConfig,
         filters: &[Expr],
+        agg_with_grouping: Option<&AggWithGrouping>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // If enable pruning then combine the filters to build the predicate.
         // If disable pruning then set the predicate to None, thus readers
@@ -203,6 +217,7 @@ impl FileFormat for ParquetFormat {
         Ok(Arc::new(ParquetExec::new(
             conf,
             predicate,
+            agg_with_grouping.cloned(),
             self.metadata_size_hint(state.config_options()),
         )))
     }

@@ -351,6 +351,7 @@ mod tests {
             },
             None,
             None,
+            None,
         ))
     }
 
@@ -371,6 +372,7 @@ mod tests {
                 output_ordering: None,
                 infinite_source: false,
             },
+            None,
             None,
             None,
         ))
@@ -395,6 +397,7 @@ mod tests {
                 output_ordering: Some(sort_exprs),
                 infinite_source: false,
             },
+            None,
             None,
             None,
         ))

@@ -386,6 +386,8 @@ impl PartitionColumnProjector {
         file_batch: RecordBatch,
         partition_values: &[ScalarValue],
     ) -> Result<RecordBatch> {
+
+        return Ok(file_batch);
         let expected_cols =
             self.projected_schema.fields().len() - self.projected_partition_indexes.len();
 

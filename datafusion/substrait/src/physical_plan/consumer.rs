@@ -127,7 +127,7 @@ pub async fn from_substrait_rel(
                         }
                     }
 
-                    Ok(Arc::new(ParquetExec::new(base_config, None, None))
+                    Ok(Arc::new(ParquetExec::new(base_config, None, None, None))
                         as Arc<dyn ExecutionPlan>)
                 }
                 _ => Err(DataFusionError::NotImplemented(
