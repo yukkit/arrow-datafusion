@@ -238,6 +238,11 @@ pub fn create_hashes<'a>(
                 array => hash_dictionary(array, random_state, hashes_buffer, multi_col)?,
                 _ => unreachable!()
             }
+            DataType::Struct(_) => {
+                // TODO
+                let struct_array = datafusion_common::cast::as_struct_array(array)?;
+                create_hashes(struct_array.columns(), random_state, hashes_buffer)?;
+            }
             _ => {
                 // This is internal because we should have caught this before.
                 return Err(DataFusionError::Internal(format!(

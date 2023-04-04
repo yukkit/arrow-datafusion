@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::expressions::NamedStruct;
 use crate::var_provider::is_system_variables;
 use crate::{
     execution_props::ExecutionProps,
@@ -498,6 +499,22 @@ pub fn create_physical_expr(
                 expressions::in_list(value_expr, list_exprs, negated, input_schema)
             }
         },
+        Expr::NamedStruct(exprs) => {
+            let struct_name_with_exprs = exprs
+                .iter()
+                .map(|(name, expr)| {
+                    let name = name.clone();
+                    let expr = create_physical_expr(
+                        expr,
+                        input_dfschema,
+                        input_schema,
+                        execution_props,
+                    )?;
+                    Ok((name, expr))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(Arc::new(NamedStruct::new(struct_name_with_exprs)))
+        }
         other => Err(DataFusionError::NotImplemented(format!(
             "Physical plan does not support logical expression {other:?}"
         ))),

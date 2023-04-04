@@ -21,8 +21,8 @@ use crate::protobuf::{
         FinalLogicalPlan, FinalPhysicalPlan, InitialLogicalPlan, InitialPhysicalPlan,
         OptimizedLogicalPlan, OptimizedPhysicalPlan,
     },
-    CubeNode, GroupingSetNode, OptimizedLogicalPlanType, OptimizedPhysicalPlanType,
-    PlaceholderNode, RollupNode,
+    CubeNode, GroupingSetNode, NamedStructNode, OptimizedLogicalPlanType,
+    OptimizedPhysicalPlanType, PlaceholderNode, RollupNode,
 };
 use arrow::datatypes::{
     DataType, Field, IntervalMonthDayNanoType, IntervalUnit, Schema, TimeUnit, UnionMode,
@@ -1385,6 +1385,19 @@ pub fn parse_expr(
                 data_type: Some(data_type.try_into()?),
             }),
         },
+        ExprType::NamedStruct(NamedStructNode { exprs }) => {
+            let new_exprs = exprs
+                .iter()
+                .map(|expr| {
+                    Ok((
+                        expr.name.clone(),
+                        parse_required_expr(expr.expr.as_ref(), registry, "expr")?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+
+            Ok(Expr::NamedStruct(Box::new(new_exprs)))
+        }
     }
 }
 

@@ -457,7 +457,7 @@ pub struct SubqueryAliasNode {
 pub struct LogicalExprNode {
     #[prost(
         oneof = "logical_expr_node::ExprType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35"
     )]
     pub expr_type: ::core::option::Option<logical_expr_node::ExprType>,
 }
@@ -542,7 +542,23 @@ pub mod logical_expr_node {
         SimilarTo(::prost::alloc::boxed::Box<super::SimilarToNode>),
         #[prost(message, tag = "34")]
         Placeholder(super::PlaceholderNode),
+        #[prost(message, tag = "35")]
+        NamedStruct(super::NamedStructNode),
     }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StructTuple {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub expr: ::core::option::Option<LogicalExprNode>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct NamedStructNode {
+    #[prost(message, repeated, tag = "1")]
+    pub exprs: ::prost::alloc::vec::Vec<StructTuple>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

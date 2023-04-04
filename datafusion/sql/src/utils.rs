@@ -415,6 +415,15 @@ where
                 id: id.clone(),
                 data_type: data_type.clone(),
             }),
+            Expr::NamedStruct(exprs) => {
+                let new_exprs = exprs
+                    .iter()
+                    .map(|(name, expr)| {
+                        Ok((name.clone(), clone_with_replacement(expr, replacement_fn)?))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Expr::NamedStruct(Box::new(new_exprs)))
+            }
         },
     }
 }

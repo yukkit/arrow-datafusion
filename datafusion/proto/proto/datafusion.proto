@@ -359,7 +359,17 @@ message LogicalExprNode {
 
     PlaceholderNode placeholder = 34;
 
+    NamedStructNode named_struct = 35;
   }
+}
+
+message StructTuple {
+  string name = 1;
+  LogicalExprNode expr = 2;
+}
+
+message NamedStructNode {
+  repeated StructTuple exprs = 1;
 }
 
 message PlaceholderNode {
