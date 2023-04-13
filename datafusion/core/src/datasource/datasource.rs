@@ -106,6 +106,11 @@ pub trait TableProvider: Sync + Send {
         Ok(TableProviderAggregationPushDown::Unsupported)
     }
 
+    /// The projection is pushed down to the data source
+    fn push_down_projection(&self, _proj: &[usize]) -> Option<Vec<usize>> {
+        None
+    }
+
     /// Get statistics for this table, if available
     fn statistics(&self) -> Option<Statistics> {
         None

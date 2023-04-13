@@ -23,9 +23,7 @@ use crate::analyzer::AnalyzerRule;
 use datafusion_common::config::ConfigOptions;
 use datafusion_common::tree_node::{Transformed, TreeNode};
 use datafusion_common::Result;
-use datafusion_expr::{
-    logical_plan::LogicalPlan, Expr, Filter, LogicalPlanBuilder, TableScan,
-};
+use datafusion_expr::{logical_plan::LogicalPlan, Expr, Filter, TableScan};
 
 /// Analyzed rule that inlines TableScan that provide a [`LogicalPlan`]
 /// (DataFrame / ViewTable)
@@ -54,28 +52,10 @@ fn analyze_internal(plan: LogicalPlan) -> Result<Transformed<LogicalPlan>> {
         // Views and DataFrames won't have those added
         // during the early stage of planning
         LogicalPlan::TableScan(TableScan {
-            table_name,
-            source,
-            projection,
-            filters,
-            ..
+            source, filters, ..
         }) if filters.is_empty() && source.get_logical_plan().is_some() => {
             let sub_plan = source.get_logical_plan().unwrap();
-            let projection_exprs = generate_projection_expr(&projection, sub_plan)?;
-            let plan = LogicalPlanBuilder::from(sub_plan.clone())
-                .project(projection_exprs)?
-                // Since this This is creating a subquery like:
-                //```sql
-                // ...
-                // FROM <view definition> as "table_name"
-                // ```
-                //
-                // it doesn't make sense to have a qualified
-                // reference (e.g. "foo"."bar") -- this convert to
-                // string
-                .alias(table_name.to_string())?
-                .build()?;
-            Transformed::Yes(plan)
+            Transformed::Yes(sub_plan.clone())
         }
         LogicalPlan::Filter(filter) => {
             let new_expr = filter.predicate.transform(&rewrite_subquery)?;
@@ -118,23 +98,6 @@ fn rewrite_subquery(expr: Expr) -> Result<Transformed<Expr>> {
         }
         _ => Ok(Transformed::No(expr)),
     }
-}
-
-fn generate_projection_expr(
-    projection: &Option<Vec<usize>>,
-    sub_plan: &LogicalPlan,
-) -> Result<Vec<Expr>> {
-    let mut exprs = vec![];
-    if let Some(projection) = projection {
-        for i in projection {
-            exprs.push(Expr::Column(
-                sub_plan.schema().fields()[*i].qualified_column(),
-            ));
-        }
-    } else {
-        exprs.push(Expr::Wildcard);
-    }
-    Ok(exprs)
 }
 
 #[cfg(test)]

@@ -706,6 +706,7 @@ fn temporal_coercion(lhs_type: &DataType, rhs_type: &DataType) -> Option<DataTyp
         (Timestamp(_, tz), Utf8) | (Utf8, Timestamp(_, tz)) => {
             Some(Timestamp(TimeUnit::Nanosecond, tz.clone()))
         }
+        (t @ Timestamp(_, _), Int64) | (Int64, t @ Timestamp(_, _)) => Some(t.clone()),
         (Timestamp(_, None), Date32) | (Date32, Timestamp(_, None)) => {
             Some(Timestamp(TimeUnit::Nanosecond, None))
         }

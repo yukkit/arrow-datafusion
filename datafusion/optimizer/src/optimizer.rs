@@ -234,7 +234,6 @@ impl Optimizer {
             Arc::new(PushDownLimit::new()),
             Arc::new(PushDownFilter::new()),
             Arc::new(SingleDistinctToGroupBy::new()),
-            Arc::new(PushDownAggregation::new()),
             // The previous optimizations added expressions and projections,
             // that might benefit from the following rules
             Arc::new(SimplifyExpressions::new()),
@@ -242,6 +241,7 @@ impl Optimizer {
             Arc::new(CommonSubexprEliminate::new()),
             Arc::new(PushDownProjection::new()),
             Arc::new(EliminateProjection::new()),
+            Arc::new(PushDownAggregation::new()),
             // PushDownProjection can pushdown Projections through Limits, do PushDownLimit again.
             Arc::new(PushDownLimit::new()),
         ];

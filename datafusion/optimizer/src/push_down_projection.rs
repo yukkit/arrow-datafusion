@@ -80,7 +80,9 @@ impl OptimizerRule for PushDownProjection {
                     .unwrap_or(projection);
                 return Ok(Some(plan.with_new_inputs(&[optimized_child])?));
             }
-            LogicalPlan::TableScan(scan) if scan.projection.is_none() => {
+            LogicalPlan::TableScan(scan)
+                if (scan.projection.is_none() && scan.agg_with_grouping.is_none()) =>
+            {
                 return Ok(Some(push_down_scan(&HashSet::new(), scan, false)?));
             }
             _ => return Ok(None),
@@ -533,6 +535,11 @@ fn push_down_scan(
     } else {
         projection.into_iter().collect::<Vec<_>>()
     };
+
+    let projection = scan
+        .source
+        .push_down_projection(&projection)
+        .unwrap_or(projection);
 
     // create the projected schema
     let projected_fields: Vec<DFField> = projection

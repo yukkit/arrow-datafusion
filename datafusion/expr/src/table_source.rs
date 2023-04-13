@@ -73,6 +73,10 @@ pub enum TableType {
 /// on the DataFusion execution engine. Other projects may want to use DataFusion's
 /// logical plans and have their own execution engine.
 pub trait TableSource: Sync + Send {
+    fn name(&self) -> &str {
+        "UNKNOWN"
+    }
+
     fn as_any(&self) -> &dyn Any;
 
     /// Get a reference to the schema for this table
@@ -113,6 +117,11 @@ pub trait TableSource: Sync + Send {
         _aggr_expr: &[Expr],
     ) -> datafusion_common::Result<TableProviderAggregationPushDown> {
         Ok(TableProviderAggregationPushDown::Unsupported)
+    }
+
+    /// The projection is pushed down to the data source
+    fn push_down_projection(&self, _proj: &[usize]) -> Option<Vec<usize>> {
+        None
     }
 
     /// Get the Logical plan of this table provider, if available.
