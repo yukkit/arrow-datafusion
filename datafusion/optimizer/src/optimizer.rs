@@ -17,7 +17,6 @@
 
 //! Query optimizer traits
 
-use crate::analyzer::Analyzer;
 use crate::common_subexpr_eliminate::CommonSubexprEliminate;
 use crate::decorrelate_where_exists::DecorrelateWhereExists;
 use crate::decorrelate_where_in::DecorrelateWhereIn;
@@ -266,8 +265,7 @@ impl Optimizer {
         F: FnMut(&LogicalPlan, &dyn OptimizerRule),
     {
         let options = config.options();
-        // execute_and_check has it's own timer
-        let mut new_plan = Analyzer::default().execute_and_check(plan, options)?;
+        let mut new_plan = plan.clone();
 
         let start_time = Instant::now();
 
