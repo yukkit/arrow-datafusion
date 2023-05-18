@@ -23,6 +23,7 @@ use crate::analyzer::AnalyzerRule;
 use datafusion_common::config::ConfigOptions;
 use datafusion_common::tree_node::{Transformed, TreeNode};
 use datafusion_common::Result;
+use datafusion_expr::LogicalPlanBuilder;
 use datafusion_expr::{logical_plan::LogicalPlan, Expr, Filter, TableScan};
 
 /// Analyzed rule that inlines TableScan that provide a [`LogicalPlan`]
@@ -38,7 +39,7 @@ impl InlineTableScan {
 
 impl AnalyzerRule for InlineTableScan {
     fn analyze(&self, plan: LogicalPlan, _: &ConfigOptions) -> Result<LogicalPlan> {
-        plan.transform_up(&analyze_internal)
+        plan.transform_down(&analyze_internal)
     }
 
     fn name(&self) -> &str {
@@ -52,10 +53,37 @@ fn analyze_internal(plan: LogicalPlan) -> Result<Transformed<LogicalPlan>> {
         // Views and DataFrames won't have those added
         // during the early stage of planning
         LogicalPlan::TableScan(TableScan {
-            source, filters, ..
+            table_name,
+            source,
+            projection,
+            filters,
+            ..
         }) if filters.is_empty() && source.get_logical_plan().is_some() => {
             let sub_plan = source.get_logical_plan().unwrap();
-            Transformed::Yes(sub_plan.clone())
+
+            let fields = sub_plan.schema().fields().iter().collect::<Vec<_>>();
+            let new_fields = sub_plan.schema().fields_with_qualified(&table_name);
+
+            if new_fields.eq(&fields) {
+                // If the schema of the inlined table is the same as the
+                // schema of the table scan, we can just replace the table
+                // scan with the inlined table.
+                Transformed::Yes(sub_plan.clone())
+            } else {
+                let projection_exprs = generate_projection_expr(&projection, sub_plan)?;
+                // If the schema of the inlined table is different from the
+                // schema of the table scan, we need to add a projection to
+                // the inlined table to ensure that the schema of the table
+                // scan is the same as the schema of the inlined table.
+                let plan = LogicalPlanBuilder::from(sub_plan.clone())
+                    .project(projection_exprs)?
+                    // Ensures that the reference to the inlined table remains the
+                    // same, meaning we don't have to change any of the parent nodes
+                    // that reference this table.
+                    .alias(table_name.to_string())?
+                    .build()?;
+                Transformed::Yes(plan)
+            }
         }
         LogicalPlan::Filter(filter) => {
             let new_expr = filter.predicate.transform(&rewrite_subquery)?;
@@ -98,6 +126,23 @@ fn rewrite_subquery(expr: Expr) -> Result<Transformed<Expr>> {
         }
         _ => Ok(Transformed::No(expr)),
     }
+}
+
+fn generate_projection_expr(
+    projection: &Option<Vec<usize>>,
+    sub_plan: &LogicalPlan,
+) -> Result<Vec<Expr>> {
+    let mut exprs = vec![];
+    if let Some(projection) = projection {
+        for i in projection {
+            exprs.push(Expr::Column(
+                sub_plan.schema().fields()[*i].qualified_column(),
+            ));
+        }
+    } else {
+        exprs.push(Expr::Wildcard);
+    }
+    Ok(exprs)
 }
 
 #[cfg(test)]

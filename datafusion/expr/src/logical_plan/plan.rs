@@ -1320,7 +1320,7 @@ pub struct SubqueryAlias {
 impl SubqueryAlias {
     pub fn try_new(plan: LogicalPlan, alias: impl Into<String>) -> Result<Self> {
         let alias = alias.into();
-        let table_ref = TableReference::bare(&alias);
+        let table_ref = TableReference::parse_str(&alias);
         let schema: Schema = plan.schema().as_ref().clone().into();
         let schema = DFSchemaRef::new(DFSchema::try_from_qualified_schema(
             table_ref.to_owned_reference(),
