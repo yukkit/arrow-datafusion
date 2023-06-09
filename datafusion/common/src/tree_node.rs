@@ -171,6 +171,22 @@ pub trait TreeNode: Sized {
         }
     }
 
+    fn rewrite_down<R: TreeNodeRewriter<N = Self>>(self, rewriter: &mut R) -> Result<Self> {
+        let need_mutate = match rewriter.pre_visit(&self)? {
+            RewriteRecursion::Mutate => return rewriter.mutate(self),
+            RewriteRecursion::Stop => return Ok(self),
+            RewriteRecursion::Continue => true,
+            RewriteRecursion::Skip => false,
+        };
+
+        if need_mutate {
+            let plan = rewriter.mutate(self)?;
+            plan.map_children(|node| node.rewrite_down(rewriter))
+        } else {
+            Ok(self)
+        }
+    }
+
     /// Apply the closure `F` to the node's children
     fn apply_children<F>(&self, op: &mut F) -> Result<VisitRecursion>
     where
